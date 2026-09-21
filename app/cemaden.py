@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 import requests
@@ -21,6 +22,7 @@ class CemadenClient:
         self._session = requests.Session()
         self._token: str | None = None
         self._expires_at: float | None = None
+        self.last_response_metadata: dict[str, object] = {}
 
     def close(self) -> None:
         self._session.close()
@@ -103,6 +105,8 @@ class CemadenClient:
     ) -> Any:
         try:
             LOGGER.info("Consultando %s.", resource_name)
+            requested_at = datetime.now(UTC)
+            started_at = time.monotonic()
             response = self._session.get(
                 url,
                 headers={"token": self._token or ""},
@@ -139,6 +143,12 @@ class CemadenClient:
             payload = response.json()
         except ValueError as exc:
             raise RuntimeError("Resposta de dados do CEMADEN não contém JSON válido.") from exc
+        self.last_response_metadata = {
+            "data_hora_requisicao": requested_at,
+            "endpoint": url,
+            "status_http": response.status_code,
+            "tempo_resposta_ms": round((time.monotonic() - started_at) * 1000),
+        }
         LOGGER.info("Consulta realizada com sucesso. HTTP %s.", response.status_code)
         return payload
 

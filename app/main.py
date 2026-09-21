@@ -8,7 +8,7 @@ import time
 from app.cemaden import CemadenClient
 from app.config import ConfigurationError, Settings
 from app.database import check_database_connection, create_database_engine
-from app.ingestion import save_raw_payload, sync_sensor_catalog
+from app.ingestion import process_payload_to_dw, save_raw_payload, sync_sensor_catalog
 
 
 def configure_logging() -> None:
@@ -51,7 +51,8 @@ def main() -> None:
             cycle_started = time.monotonic()
             try:
                 payload = client.get_recent_data()
-                save_raw_payload(engine, payload)
+                raw = save_raw_payload(engine, payload, **client.last_response_metadata)
+                process_payload_to_dw(engine, payload, raw)
             except Exception:  # mantém o serviço ativo; detalhes ficam no log
                 logger.exception("Falha no ciclo de ingestão; o próximo ciclo será tentado.")
 

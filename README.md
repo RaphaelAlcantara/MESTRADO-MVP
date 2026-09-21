@@ -1,6 +1,20 @@
-# CEMADEN Recife — Ingestão RAW
+# CEMADEN Recife — Ingestão RAW e DW
 
-Coletor contínuo dos dados recentes do CEMADEN para o Recife. Esta primeira versão armazena exclusivamente o JSON original em `raw.api_medicoes`; não há carga para `dw.fato_medicao`.
+Coletor contínuo dos dados recentes do CEMADEN para o Recife. Cada resposta é preservada em `raw.api_medicoes` e seus registros válidos são carregados em `dw.fato_medicao`.
+
+## Migration obrigatória
+
+Antes de iniciar esta versão, aplique `migrations/001_observado_previsto_up.sql` e `migrations/002_chave_nula_variavel_up.sql`, nesta ordem, no banco existente. As migrations só usam `ALTER TABLE` e índices/constraints, e conservam os dados; registros históricos recebem `DESCONHECIDO`, pois não há base segura para classificá-los retroativamente. O rollback estrutural da primeira está em `migrations/001_observado_previsto_down.sql`.
+
+Com o ambiente virtual ativado, a forma recomendada de aplicá-las é:
+
+```powershell
+python -m app.migrate
+```
+
+`data_hora_medicao` é a hora de referência do fenômeno; `data_hora_ingestao` é quando o coletor recebeu o registro. A API entrega `datahora` sem offset, portanto ela é interpretada como `America/Recife` e armazenada como `TIMESTAMPTZ` em UTC. Como a API não traz uma flag, referências até dois minutos após a ingestão são `OBSERVADO` (tolerância para atraso/arredondamento); referências posteriores são `PREVISTO`.
+
+Previsões não são sobrescritas: a identidade inclui estação, sensor, variável, referência, ingestão, tipo, qualificação e valor. A mesma leitura reprocessada no mesmo instante é ignorada; uma nova previsão para a mesma referência com outra ingestão é mantida. `qualificacao` fica guardada e também participa da identidade para não ocultar retornos distintos. Consulte `sql/validacao_observado_previsto.sql` para histórico e relação previsão × observado.
 
 ## Pré-requisitos
 
@@ -24,7 +38,7 @@ Crie/preencha o arquivo local `.env` com as variáveis apresentadas na seção d
 python -m app.main
 ```
 
-O processo valida a conexão com o banco antes de iniciar. Em cada ciclo, ele obtém ou reutiliza um token em memória, consulta a PED e persiste o JSON sem transformação. Falhas transitórias de API ou banco são registradas e não encerram o processo. Interrompa com `Ctrl+C`.
+O processo valida a conexão com o banco antes de iniciar. Em cada ciclo, ele obtém ou reutiliza um token em memória, consulta a PED, persiste o JSON e transforma os itens válidos. Falhas por item são registradas e não interrompem o lote; falhas transitórias de API ou banco não encerram o processo. Interrompa com `Ctrl+C`.
 
 Na inicialização, o processo também sincroniza o catálogo oficial de sensores em
 `dw.dim_sensor`. Para executar somente essa sincronização, sem iniciar a coleta
