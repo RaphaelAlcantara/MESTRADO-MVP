@@ -1,3 +1,6 @@
+--Create Database
+CREATE DATABASE cemaden_recife
+
 --instala plugin do postgis
 CREATE EXTENSION IF NOT EXISTS postgis;
 SELECT PostGIS_Version();
